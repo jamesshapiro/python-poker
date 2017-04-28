@@ -9,7 +9,7 @@ class Deck:
     def __init__(self):
         self.suits = ['hearts', 'clubs', 'spades', 'diamonds']
         self.ranks = range(13)
-        self.cards = [Card(rank+1, suit)
+        self.cards = [Card(rank+2, suit)
                       for rank in self.ranks
                       for suit in self.suits]
     
