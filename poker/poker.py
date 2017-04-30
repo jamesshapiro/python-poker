@@ -57,9 +57,34 @@ class Hand:
     def __lt__(self, other):
         return self.value < other.value
 
+def evaluate_pocket_heads_up(card1, card2):
+    deck = Deck()
+    deck.remove(card1)
+    deck.remove(card2)
+    player1 = [card1, card2]
+    simulation_tally = [0, 0, 0]
+    num_simulations = 250
+    for _ in range(num_simulations):
+        deck.shuffle()
+        player1 += deck[:5]
+        player2 = deck[:7]
+        player1allhands = list(itertools.combinations(player1, 5))
+        player2allhands = list(itertools.combinations(player2, 5))
+        combos = list(player1allhands)
+        bestComboForP1 = max(combos, key=lambda x: Hand(x).value)
+        combos = list(player2allhands)
+        bestComboForP2 = max(combos, key=lambda x: Hand(x).value)
+        if Hand(bestComboForP1) > Hand(bestComboForP2):
+            simulation_tally[0] += 1
+        elif Hand(bestComboForP1) < Hand(bestComboForP2):
+            simulation_tally[1] += 1
+        else:
+            simulation_tally[2] += 1
+        player1 = player1[:2]
+    return [round(x/num_simulations, 4) for x in simulation_tally]
+    
 d = Deck()
 d.shuffle()
-player1 = []
 player2 = []
 firstFive = d[:5]
 player1 = d[5:7] + d[:5]
@@ -73,7 +98,6 @@ combos = list(player2allhands)
 bestComboForP2 = max(combos, key=lambda x: Hand(x).value)
 if Hand(bestComboForP1) > Hand(bestComboForP2):
     print("Player 1 wins!:")
-
 elif Hand(bestComboForP1) < Hand(bestComboForP2):
     print("Player 2 wins!:")
     print("P1: {}".format(Hand(bestComboForP1).value))
@@ -87,3 +111,7 @@ print("P1: {}".format(Hand(bestComboForP1).value))
 print("P2: {}".format(Hand(bestComboForP2).value))
 
 hand = Hand([Card(rank=12, suit='clubs'), Card(rank=13, suit='hearts'), Card(rank=12, suit='spades'), Card(rank=3, suit='diamonds'), Card(rank=3, suit='spades')])
+
+pocket_aces = [Card(rank=14, suit='spades'), Card(rank=14, suit='clubs')]
+sim = evaluate_pocket_heads_up(*pocket_aces)
+print("Wins: {}, Losses: {}, Ties: {}".format(sim[0], sim[1], sim[2]))

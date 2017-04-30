@@ -12,7 +12,8 @@ class Deck:
         self.cards = [Card(rank+2, suit)
                       for rank in self.ranks
                       for suit in self.suits]
-    
+    def remove(self, card):
+        self.cards.remove(card)
     def shuffle(self):
         random.shuffle(self.cards)
         return self.cards
