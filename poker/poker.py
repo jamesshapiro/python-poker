@@ -11,52 +11,120 @@ from functools import total_ordering
 class Hand:
     def __init__(self, cards):
         self.cards = cards
-        self.is_flush = False
-        self.is_straight = False
+        is_flush = False
+        is_straight = False
         self.value = []
-        self.suit_count = collections.Counter()
-        self.rank_count = collections.Counter()
+        suit_count = collections.Counter()
+        rank_count = collections.Counter()
         for card in self.cards:
-            self.suit_count[card.suit] += 1
-            self.rank_count[card.rank] += 1
-        self.suit_counts = {*self.suit_count.values()}
-        self.rank_counts = {*self.rank_count.values()}
-        self.distinct_ranks = {*self.rank_count.keys()}
-        if len(self.distinct_ranks) == 5:
-            if max(self.distinct_ranks) - min(self.distinct_ranks) == 4:
-                self.is_straight = True
-            elif {14, 2, 3, 4, 5} < self.distinct_ranks:
-                self.is_straight = True
-        self.lst = sorted(self.cards,
-                          key=lambda crd: crd.rank,
+            suit_count[card.suit] += 1
+            rank_count[card.rank] += 1
+        distinct_ranks = {card.rank for card in self.cards}
+        ''' 
+        'rank_count_shape' is an important criterion in assigning the hand
+        to a 'category' (i.e. the category of 'Full House'). The other
+        criteria are whether the hand is a straight or a flush (or
+        both).
+        
+        Category        -> rank_count_shape
+        ===============    =================
+        Four-of-a-Kind  -> (4, 1)
+        Full House      -> (3, 2)
+        Three-of-a-Kind -> (3, 1, 1)
+        Two Pair        -> (2, 2, 1)
+        Pair            -> (2, 1, 1, 1)
+        High Card       -> (1, 1, 1, 1, 1)
+'''
+        rank_count_shape = tuple(sorted(rank_count.values(), reverse=True))
+        if rank_count_shape == (1, 1, 1, 1, 1):
+            if max(distinct_ranks) - min(distinct_ranks) == 4:
+                is_straight = True
+            elif {14, 2, 3, 4, 5} < distinct_ranks:
+                is_straight = True
+        
+        ''' The hand value is mapped to a list of integers
+        representing the "category" of the hand (i.e. 'straight') 
+        followed by the cards in sorted order.
+        
+        The cards are sorted by rank-count (primary key) then by
+        rank (secondary key). Note: Aces are ranked '14', so A-2-3-4-5
+        is a separately handled edge-case.
+        
+        The hand: 
+            K♠, 2♠, 7♣, 7♦, 2♥, would map to
+        -> [3, 7, 7, 2, 2, 13]
+        
+        
+        (1.) '3' is the "category value" of the 'two pair'
+             (it is the 3rd worst category of hand)
+        (2.) '7' is the first card in the high pair
+        (3.) '7' is the second card in the high pair
+        (4.) '2' is the first card in the low pair
+        (5.) '2' is the second card in the low pair
+        (6.) '13' ('King') is the kicker.
+        
+        The primary-key sort ensures that all of the pair cards precede
+        the king even though they are outranked by the king. The
+        secondary-key sort ensures that the high-pair cards precede
+        the low-pair cards (and that any kicker cards are sorted in 
+        descending order of rank)
+        
+        Once we have this list of integers we convert it into a
+        single integer for the sake of efficiently comparing two hands
+        to decide which hand wins. The mapping (list of ints) -> int
+        preserves cardinality (that is to say, Hand-A beats Hand-B if 
+        and only if Hand-A has a higher 'value' than Hand-B.
+        '''
+        self.cards = sorted(self.cards,
+                          key=lambda card: card.rank,
                           reverse=True)
-        self.lst = sorted(self.lst,
-                          key=lambda crd: self.rank_count[crd.rank],
+        self.cards = sorted(self.cards,
+                          key=lambda card: rank_count[card.rank],
                           reverse=True)
-        self.lst = list(map(lambda crd: crd.rank, self.lst))
-        if {14, 2, 3, 4, 5} < self.distinct_ranks:
-            self.lst = self.lst[1:] + self.lst[0:1]
-        self.is_flush = max(self.suit_counts) == 5
-        if self.is_straight and self.is_flush:
-            self.value = [9] + self.lst
-        elif max(self.rank_counts) == 4:
-            self.value = [8] + self.lst
-        elif (self.rank_count.most_common(2)[0][1],
-              self.rank_count.most_common(2)[1][1]) == (3, 2):
-            self.value = [7] + self.lst
-        elif self.is_flush:
-            self.value = [6] + self.lst
-        elif self.is_straight:
-            self.value = [5] + self.lst
-        elif max(self.rank_counts) == 3:
-            self.value = [4] + self.lst
-        elif (self.rank_count.most_common(2)[0][1],
-              self.rank_count.most_common(2)[1][1]) == (2, 2):
-            self.value = [3] + self.lst
-        elif max(self.rank_counts) == 2:
-            self.value = [2] + self.lst
+        self.cards = list(map(lambda card: card.rank, self.cards))
+        # Edge-case: 5 is the high-card in an A, 2, 3, 4, 5 straight
+        if {14, 2, 3, 4, 5} < distinct_ranks:
+            self.cards = self.cards[1:] + self.cards[0:1]
+        is_flush = max({*suit_count.values()}) == 5
+        
+        # Straight Flush
+        if is_straight and is_flush:
+            self.value = [9] + self.cards
+        # Four-of-a-Kind
+        elif rank_count_shape == (4, 1):
+            self.value = [8] + self.cards
+        # Full House
+        elif rank_count_shape == (3, 2):
+            self.value = [7] + self.cards
+        # Flush
+        elif is_flush:
+            self.value = [6] + self.cards
+        # Straight
+        elif is_straight:
+            self.value = [5] + self.cards
+        # Three-of-a-Kind
+        elif rank_count_shape == (3, 1, 1):
+            self.value = [4] + self.cards
+        # Two Pair
+        elif rank_count_shape == (2, 2, 1):
+            self.value = [3] + self.cards
+        # Pair
+        elif rank_count_shape == (2, 1, 1, 1):
+            self.value = [2] + self.cards
+        # High Card
         else:
-            self.value = [1] + self.lst
+            self.value = [1] + self.cards
+        ''' 
+        Compute a unique, cardinality-preserving int-value for the hand.
+        Note any base >= 15 would have worked (since there are 13 ranks the
+        highest of which is assigned a numerical value of 14. We use hex
+        because it is built into the language and is therefore the simplest
+        cardinality-preserving conversion
+        '''
+        # hand-value to hex-string, e.g. [1, 14, 10] -> ['1', 'e', 'a']
+        self.value = list(map(lambda x: format(x, 'x'), self.value))
+        # hex-string to int, e.g. ['1', 'e', 'a'] -> 0x1ea -> 490
+        self.value = int("".join(str(x) for x in self.value), 16)
 
     def __eq__(self, other):
         return self.value == other.value
@@ -64,71 +132,40 @@ class Hand:
     def __lt__(self, other):
         return self.value < other.value
 
-def evaluate_pocket_heads_up(card1,
-                             card2,
-                             n_other_players = 1,
-                             num_simulations = 250):
-    assert(n_other_players > 0)
+def evaluate_pocket(card1, card2, num_other_players = 1, num_simulations = 250):
+    if num_other_players < 1:
+        raise ValueError("number of opponents must be positive")
+    print("Evaluating pocket: {}{} vs {} opponents. {} simulations"
+          .format(card1, card2, num_other_players, num_simulations))
     deck = Deck()
     deck.remove(card1)
     deck.remove(card2)
-    player1 = [card1, card2]
-    simulation_tally = [0, 0, 0]
+    pocket = [card1, card2]
+    tally = {'wins': 0, 'losses': 0, 'ties': 0}
     for _ in range(num_simulations):
         deck.shuffle()
-        player1 += deck[:5]
-        player1allhands = list(itertools.combinations(player1, 5))
-        combos = list(player1allhands)
-        bestComboForP1 = max(combos, key=lambda x: Hand(x).value)
-        is_losing_hand = False
-        is_tying_hand = False
-        for i in range(n_other_players):
-            other_player_i = deck[:5] + deck[5+(2*i):7+(2*i)]
-            allhands = list(itertools.combinations(other_player_i, 5))
-            combos = list(allhands)
-            bestCombo = max(combos, key=lambda x: Hand(x).value)
-            if Hand(bestComboForP1) < Hand(bestCombo):
-                is_losing_hand = True
-            elif Hand(bestComboForP1) == Hand(bestCombo):
-                is_tying_hand = True
-        if is_losing_hand:
-            simulation_tally[1] += 1
-        elif is_tying_hand:
-            simulation_tally[2] += 1
+        pocket_player = pocket + deck[:5]
+        all_combos = list(itertools.combinations(pocket_player, 5))
+        best_pocket_hand_value = max(
+            map(lambda cards: Hand(cards).value, all_combos))        
+        best_opponent_hand_value = 0
+        for i in range(num_other_players):
+            opponent_i = deck[:5] + deck[5+(2*i):7+(2*i)]
+            all_combos = list(itertools.combinations(opponent_i, 5))
+            best_opponent_i_hand = max(map(lambda c: Hand(c), all_combos))
+            best_opponent_hand_value = max(best_opponent_hand_value,
+                                           best_opponent_i_hand.value)
+        if best_pocket_hand_value > best_opponent_hand_value:
+            tally['wins'] += 1
+        elif best_pocket_hand_value < best_opponent_hand_value:
+            tally['losses'] += 1
         else:
-            simulation_tally[0] += 1
-        player1 = player1[:2]
-    return [round(x/num_simulations, 4) for x in simulation_tally]
-    
-d = Deck()
-d.shuffle()
-player2 = []
-firstFive = d[:5]
-player1 = d[5:7] + d[:5]
-player2 = d[7:9] + d[:5]
+            tally['ties'] += 1
+    tally.update((k, v / num_simulations) for k, v in tally.items())
+    return tally
 
-player1allhands = list(itertools.combinations(player1, 5))
-player2allhands = list(itertools.combinations(player2, 5))
-combos = list(player1allhands)
-bestComboForP1 = max(combos, key=lambda x: Hand(x).value)
-combos = list(player2allhands)
-bestComboForP2 = max(combos, key=lambda x: Hand(x).value)
-if Hand(bestComboForP1) > Hand(bestComboForP2):
-    print("Player 1 wins!:")
-elif Hand(bestComboForP1) < Hand(bestComboForP2):
-    print("Player 2 wins!:")
-    print("P1: {}".format(Hand(bestComboForP1).value))
-    print("P2: {}".format(Hand(bestComboForP2).value))
-else:
-    print("It's a tie!:")
-print("P1 pocket: {}".format(player1[0:2]))
-print("P2 pocket: {}".format(player2[0:2]))
-print("Table cards: {}".format(player1[2:]))
-print("P1: {}".format(Hand(bestComboForP1).value))
-print("P2: {}".format(Hand(bestComboForP2).value))
-
-hand = Hand([Card(rank=12, suit='clubs'), Card(rank=13, suit='hearts'), Card(rank=12, suit='spades'), Card(rank=3, suit='diamonds'), Card(rank=3, suit='spades')])
-
-pocket_aces = [Card(rank=14, suit='spades'), Card(rank=14, suit='clubs')]
-sim = evaluate_pocket_heads_up(*pocket_aces, 3, 250)
-print("Wins: {}, Losses: {}, Ties: {}".format(sim[0], sim[1], sim[2]))
+ace_of_spades = Card(rank=14, suit='♠')
+ace_of_clubs  = Card(rank=14, suit='♣')
+bullets = [ace_of_spades, ace_of_clubs]
+simulation_results = evaluate_pocket(*bullets, 3, 250)
+print("Simulation results: {}".format(simulation_results))
