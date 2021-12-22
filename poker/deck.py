@@ -1,15 +1,9 @@
-#!/usr/bin/env python3 -tt
-
 import random
 from collections import namedtuple
 
-legible_ranks = {}
-for i in range(2,11):
-    legible_ranks[i] = str(i)
-legible_ranks[11] = 'J'
-legible_ranks[12] = 'Q'
-legible_ranks[13] = 'K'
-legible_ranks[14] = 'A'
+legible_ranks = {i: str(i) for i in range(2,11)}
+face_cards = {i+11: 'JQKA'[i] for i in range(4)}
+legible_ranks.update(face_cards)
 
 class Card(namedtuple('Card', ['rank', 'suit'])):
     def __str__(self):
@@ -17,9 +11,9 @@ class Card(namedtuple('Card', ['rank', 'suit'])):
 
 class Deck:
     def __init__(self):
+        ranks = range(2,15)
         suits = ['♥', '♣', '♠', '♦']
-        ranks = range(13)
-        self.cards = [Card(rank+2, suit)
+        self.cards = [Card(rank, suit)
                       for rank in ranks
                       for suit in suits]
     def remove(self, card):
